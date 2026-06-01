@@ -100,3 +100,32 @@ make lint
 make build
 make build-freebsd
 ```
+
+## NetFlow Test Utilities
+
+Record a short capture from OPNsense:
+
+```bash
+make netflow-record \
+  NETFLOW_LISTEN=0.0.0.0:2055 \
+  NETFLOW_ALLOW=192.168.0.1 \
+  NETFLOW_DURATION=5m \
+  NETFLOW_OUT=captures/home-5m.otmcap
+```
+
+Decode and summarize the capture:
+
+```bash
+make netflow-decode NETFLOW_IN=captures/home-5m.otmcap
+```
+
+Replay the capture into a local OTM instance:
+
+```bash
+make netflow-replay \
+  NETFLOW_IN=captures/home-5m.otmcap \
+  NETFLOW_TARGET=127.0.0.1:2055 \
+  NETFLOW_SPEED=10
+```
+
+Capture files contain internal IPs, external IPs, ports, and timing metadata. They are ignored by Git via `*.otmcap`.
