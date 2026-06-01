@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
@@ -29,6 +30,10 @@ type Config struct {
 
 // Load reads configuration from environment variables.
 func Load() (Config, error) {
+	if err := loadDotEnv(envDefault("OTM_ENV_FILE", ".env")); err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		WebAddr:                 envDefault("OTM_WEB_ADDR", "127.0.0.1:8080"),
 		WebAuthToken:            strings.TrimSpace(os.Getenv("OTM_WEB_AUTH_TOKEN")),
@@ -101,6 +106,85 @@ func envDefault(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func loadDotEnv(path string) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("open env file %s: %w", path, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lineNumber := 0
+	for scanner.Scan() {
+		lineNumber++
+		key, value, ok, err := parseDotEnvLine(scanner.Text())
+		if err != nil {
+			return fmt.Errorf("parse env file %s line %d: %w", path, lineNumber, err)
+		}
+		if !ok {
+			continue
+		}
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, value); err != nil {
+			return fmt.Errorf("set env %s from %s: %w", key, path, err)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("scan env file %s: %w", path, err)
+	}
+	return nil
+}
+
+func parseDotEnvLine(line string) (string, string, bool, error) {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "#") {
+		return "", "", false, nil
+	}
+	line = strings.TrimPrefix(line, "export ")
+
+	key, value, found := strings.Cut(line, "=")
+	if !found {
+		return "", "", false, fmt.Errorf("expected KEY=VALUE")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return "", "", false, fmt.Errorf("empty key")
+	}
+	for _, char := range key {
+		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_') {
+			return "", "", false, fmt.Errorf("invalid key %q", key)
+		}
+	}
+
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 {
+		quote := value[0]
+		if (quote == '\'' || quote == '"') && value[len(value)-1] == quote {
+			unquoted, err := strconv.Unquote(value)
+			if err != nil {
+				if quote == '\'' {
+					return key, value[1 : len(value)-1], true, nil
+				}
+				return "", "", false, err
+			}
+			return key, unquoted, true, nil
+		}
+	}
+	if index := strings.Index(value, " #"); index >= 0 {
+		value = strings.TrimSpace(value[:index])
+	}
+	return key, value, true, nil
 }
 
 func splitCSV(value string) []string {

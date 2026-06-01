@@ -25,6 +25,10 @@ http://127.0.0.1:8080/setup
 
 ## Important Settings
 
+OTM automatically reads `.env` from the current directory before reading configuration. Real environment variables take precedence over `.env` values. Use `OTM_ENV_FILE=/path/to/file` to load a different file.
+
+`.env` is ignored by Git. Keep real API keys and secrets there or in secret files, not in committed files.
+
 ```text
 OTM_WEB_ADDR=127.0.0.1:8080
 OTM_NETFLOW_ADDR=0.0.0.0:2055
