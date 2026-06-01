@@ -1,6 +1,34 @@
-.PHONY: test lint fmt build build-freebsd docker-build docker-up docker-down fake-run fake-netflow migrate clean test-integration test-opnsense-api test-netflow-listener netflow-record netflow-replay netflow-decode package-opnsense
+.PHONY: help test lint fmt build build-freebsd docker-build docker-up docker-down fake-run fake-netflow migrate clean test-integration test-opnsense-api test-netflow-listener netflow-record netflow-replay netflow-decode package-opnsense
 
 APP := otm
+
+help:
+	@echo "OTM development targets"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make <target>"
+	@echo ""
+	@echo "Targets:"
+	@echo "  help                    Show this help"
+	@echo "  test                    Run unit tests"
+	@echo "  lint                    Run go vet"
+	@echo "  fmt                     Format Go files"
+	@echo "  build                   Build local binary"
+	@echo "  build-freebsd           Build FreeBSD amd64 binary for OPNsense"
+	@echo "  docker-build            Build Docker image"
+	@echo "  docker-up               Start Docker Compose stack"
+	@echo "  docker-down             Stop Docker Compose stack"
+	@echo "  fake-run                Build and run local app with test bind addresses"
+	@echo "  fake-netflow            Placeholder for fake NetFlow sender"
+	@echo "  migrate                 Validate config/migration command path"
+	@echo "  clean                   Remove build outputs"
+	@echo "  test-integration        Run opt-in integration tests"
+	@echo "  test-opnsense-api       Validate configured OPNsense API"
+	@echo "  test-netflow-listener   Print manual NetFlow listener test guidance"
+	@echo "  netflow-record          Placeholder for NetFlow capture utility"
+	@echo "  netflow-replay          Placeholder for NetFlow replay utility"
+	@echo "  netflow-decode          Placeholder for NetFlow decode utility"
+	@echo "  package-opnsense        Placeholder for OPNsense plugin packaging"
 
 test:
 	go test ./...
