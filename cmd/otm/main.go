@@ -28,6 +28,9 @@ func main() {
 func run() error {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "--help", "-h", "help":
+			printRootHelp()
+			return nil
 		case "netflow":
 			return runNetFlowCommand(context.Background(), os.Args[2:])
 		case "version":
@@ -75,8 +78,9 @@ func run() error {
 }
 
 func runNetFlowCommand(ctx context.Context, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("usage: otm netflow <record|decode|replay|summarize>")
+	if len(args) == 0 || isHelpArg(args[0]) {
+		printNetFlowHelp()
+		return nil
 	}
 
 	switch args[0] {
@@ -93,12 +97,24 @@ func runNetFlowCommand(ctx context.Context, args []string) error {
 
 func runNetFlowRecord(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("otm netflow record", flag.ContinueOnError)
+	flags.SetOutput(os.Stdout)
+	flags.Usage = func() {
+		fmt.Fprintln(flags.Output(), "Usage: otm netflow record [options]")
+		fmt.Fprintln(flags.Output(), "")
+		fmt.Fprintln(flags.Output(), "Capture raw NetFlow UDP packets into an .otmcap file.")
+		fmt.Fprintln(flags.Output(), "")
+		fmt.Fprintln(flags.Output(), "Options:")
+		flags.PrintDefaults()
+	}
 	listen := flags.String("listen", "0.0.0.0:2055", "UDP listen address")
 	allowExporter := flags.String("allow-exporter", "", "comma-separated exporter IP allowlist")
 	duration := flags.Duration("duration", 5*time.Minute, "capture duration")
 	maxPackets := flags.Int("max-packets", 0, "stop after this many packets")
 	out := flags.String("out", "netflow.otmcap", "capture output path")
 	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
 
@@ -120,9 +136,22 @@ func runNetFlowRecord(ctx context.Context, args []string) error {
 
 func runNetFlowDecode(args []string) error {
 	flags := flag.NewFlagSet("otm netflow decode", flag.ContinueOnError)
+	flags.SetOutput(os.Stdout)
+	flags.Usage = func() {
+		fmt.Fprintln(flags.Output(), "Usage: otm netflow decode --in <capture.otmcap> [--json]")
+		fmt.Fprintln(flags.Output(), "       otm netflow decode <capture.otmcap> [--json]")
+		fmt.Fprintln(flags.Output(), "")
+		fmt.Fprintln(flags.Output(), "Decode and summarize an OTM NetFlow capture file.")
+		fmt.Fprintln(flags.Output(), "")
+		fmt.Fprintln(flags.Output(), "Options:")
+		flags.PrintDefaults()
+	}
 	input := flags.String("in", "", "capture input path")
 	jsonOut := flags.Bool("json", false, "print JSON summary")
 	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
 	if *input == "" && flags.NArg() > 0 {
@@ -147,10 +176,23 @@ func runNetFlowDecode(args []string) error {
 
 func runNetFlowReplay(ctx context.Context, args []string) error {
 	flags := flag.NewFlagSet("otm netflow replay", flag.ContinueOnError)
+	flags.SetOutput(os.Stdout)
+	flags.Usage = func() {
+		fmt.Fprintln(flags.Output(), "Usage: otm netflow replay --in <capture.otmcap> --target <host:port> [--speed 10]")
+		fmt.Fprintln(flags.Output(), "       otm netflow replay <capture.otmcap> --target <host:port>")
+		fmt.Fprintln(flags.Output(), "")
+		fmt.Fprintln(flags.Output(), "Replay captured NetFlow packets to a UDP target.")
+		fmt.Fprintln(flags.Output(), "")
+		fmt.Fprintln(flags.Output(), "Options:")
+		flags.PrintDefaults()
+	}
 	input := flags.String("in", "", "capture input path")
 	target := flags.String("target", "127.0.0.1:2055", "UDP replay target")
 	speed := flags.Float64("speed", 1, "replay speed multiplier")
 	if err := flags.Parse(args); err != nil {
+		if err == flag.ErrHelp {
+			return nil
+		}
 		return err
 	}
 	if *input == "" && flags.NArg() > 0 {
@@ -170,6 +212,56 @@ func runNetFlowReplay(ctx context.Context, args []string) error {
 	}
 	fmt.Printf("replayed %d packets to %s\n", count, *target)
 	return nil
+}
+
+func printRootHelp() {
+	fmt.Println(`OTM - OPNsense Traffic Monitor
+
+Usage:
+  otm [command]
+
+Commands:
+  serve                 Run the web app and NetFlow listener (default)
+  validate-config       Validate local configuration
+  validate-opnsense     Check OPNsense API and NetFlow setup
+  netflow               NetFlow capture, decode, and replay utilities
+  version               Print version
+  help                  Show this help
+
+Examples:
+  otm
+  otm serve
+  otm validate-opnsense
+  otm netflow record --listen 0.0.0.0:2055 --allow-exporter 192.168.0.1 --duration 5m --out captures/home.otmcap
+  otm netflow decode captures/home.otmcap
+  otm netflow replay captures/home.otmcap --target 127.0.0.1:2055 --speed 10
+
+Configuration is read from environment variables and .env by default.`)
+}
+
+func printNetFlowHelp() {
+	fmt.Println(`OTM NetFlow utilities
+
+Usage:
+  otm netflow <command> [options]
+
+Commands:
+  record       Capture raw UDP NetFlow packets to an .otmcap file
+  decode       Decode and summarize an .otmcap file
+  summarize    Alias for decode
+  replay       Replay an .otmcap file to a UDP target
+
+Examples:
+  otm netflow record --listen 0.0.0.0:2055 --allow-exporter 192.168.0.1 --duration 5m --out captures/home.otmcap
+  otm netflow decode captures/home.otmcap
+  otm netflow decode --in captures/home.otmcap --json
+  otm netflow replay captures/home.otmcap --target 127.0.0.1:2055 --speed 10
+
+Use --help with a subcommand for command-specific flags.`)
+}
+
+func isHelpArg(arg string) bool {
+	return arg == "--help" || arg == "-h" || arg == "help"
 }
 
 func printSummary(summary netflow.Summary) {
