@@ -41,6 +41,40 @@ OTM_OPNSENSE_API_SECRET_FILE=./secrets/opnsense-secret
 
 Set `OTM_COLLECTOR_ADVERTISE_ADDR` to the IP and UDP port that OPNsense should export NetFlow to.
 
+## Example: OPNsense At 192.168.0.1, OTM At 192.168.0.10
+
+If OPNsense is your router at `192.168.0.1` and this app runs on a LAN host at `192.168.0.10`, use a `.env` like:
+
+```text
+OTM_WEB_ADDR=0.0.0.0:8080
+OTM_WEB_AUTH_TOKEN=change-this-local-token
+
+OTM_NETFLOW_ADDR=0.0.0.0:2055
+OTM_NETFLOW_ALLOWED_EXPORTERS=192.168.0.1
+OTM_COLLECTOR_ADVERTISE_ADDR=192.168.0.10:2055
+
+OTM_OPNSENSE_URL=https://192.168.0.1
+OTM_OPNSENSE_API_KEY_FILE=./secrets/opnsense-key
+OTM_OPNSENSE_API_SECRET_FILE=./secrets/opnsense-secret
+OTM_OPNSENSE_INSECURE_SKIP_VERIFY=true
+```
+
+Then configure OPNsense NetFlow export to send NetFlow v9 to:
+
+```text
+Host: 192.168.0.10
+Port: 2055
+Version: 9
+```
+
+Open the setup page from your LAN:
+
+```text
+http://192.168.0.10:8080/setup?token=change-this-local-token
+```
+
+For regular use, prefer the `Authorization: Bearer ...` header or a reverse proxy over putting the token in the URL.
+
 ## API Endpoints
 
 ```text
