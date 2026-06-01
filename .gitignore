@@ -1,0 +1,9 @@
+.DS_Store
+/bin/
+/data/
+/.env
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+*.otmcap

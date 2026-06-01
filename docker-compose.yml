@@ -1,0 +1,17 @@
+services:
+  otm:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8080:8080/tcp"
+      - "2055:2055/udp"
+    volumes:
+      - ./data:/data
+      - ./secrets:/run/secrets:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
