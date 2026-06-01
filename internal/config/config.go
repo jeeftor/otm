@@ -1,13 +1,14 @@
 package config
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 // Config contains runtime settings for OTM.
@@ -28,42 +29,37 @@ type Config struct {
 	OPNsenseTimeout            time.Duration
 }
 
-// Load reads configuration from environment variables.
+// Load reads configuration through Viper using defaults, .env, and environment variables.
 func Load() (Config, error) {
-	if err := loadDotEnv(envDefault("OTM_ENV_FILE", ".env")); err != nil {
+	envFile := strings.TrimSpace(os.Getenv("OTM_ENV_FILE"))
+	if envFile == "" {
+		envFile = ".env"
+	}
+	return LoadWithEnvFile(envFile)
+}
+
+// LoadWithEnvFile reads configuration from a specific dotenv file path.
+func LoadWithEnvFile(envFile string) (Config, error) {
+	v := newViper()
+	if err := mergeEnvFile(v, envFile); err != nil {
 		return Config{}, err
 	}
 
 	cfg := Config{
-		WebAddr:                 envDefault("OTM_WEB_ADDR", "127.0.0.1:8080"),
-		WebAuthToken:            strings.TrimSpace(os.Getenv("OTM_WEB_AUTH_TOKEN")),
-		NetFlowAddr:             envDefault("OTM_NETFLOW_ADDR", "0.0.0.0:2055"),
-		CollectorAdvertiseAddr:  strings.TrimSpace(os.Getenv("OTM_COLLECTOR_ADVERTISE_ADDR")),
-		DataDir:                 envDefault("OTM_DATA_DIR", "./data"),
-		LogLevel:                envDefault("OTM_LOG_LEVEL", "info"),
-		OPNsenseURL:             strings.TrimRight(strings.TrimSpace(os.Getenv("OTM_OPNSENSE_URL")), "/"),
-		OPNsenseAPIKey:          strings.TrimSpace(os.Getenv("OTM_OPNSENSE_API_KEY")),
-		OPNsenseAPISecret:       strings.TrimSpace(os.Getenv("OTM_OPNSENSE_API_SECRET")),
-		OPNsenseAPIKeyFile:      strings.TrimSpace(os.Getenv("OTM_OPNSENSE_API_KEY_FILE")),
-		OPNsenseAPISecretFile:   strings.TrimSpace(os.Getenv("OTM_OPNSENSE_API_SECRET_FILE")),
-		OPNsenseTimeout:         5 * time.Second,
-		NetFlowAllowedExporters: splitCSV(os.Getenv("OTM_NETFLOW_ALLOWED_EXPORTERS")),
-	}
-
-	if raw := strings.TrimSpace(os.Getenv("OTM_OPNSENSE_TIMEOUT")); raw != "" {
-		timeout, err := time.ParseDuration(raw)
-		if err != nil {
-			return Config{}, fmt.Errorf("parse OTM_OPNSENSE_TIMEOUT: %w", err)
-		}
-		cfg.OPNsenseTimeout = timeout
-	}
-
-	if raw := strings.TrimSpace(os.Getenv("OTM_OPNSENSE_INSECURE_SKIP_VERIFY")); raw != "" {
-		value, err := strconv.ParseBool(raw)
-		if err != nil {
-			return Config{}, fmt.Errorf("parse OTM_OPNSENSE_INSECURE_SKIP_VERIFY: %w", err)
-		}
-		cfg.OPNsenseInsecureSkipVerify = value
+		WebAddr:                    v.GetString("web.addr"),
+		WebAuthToken:               v.GetString("web.auth_token"),
+		NetFlowAddr:                v.GetString("netflow.addr"),
+		NetFlowAllowedExporters:    splitCSV(v.GetString("netflow.allowed_exporters")),
+		CollectorAdvertiseAddr:     v.GetString("collector.advertise_addr"),
+		DataDir:                    v.GetString("data.dir"),
+		LogLevel:                   v.GetString("log.level"),
+		OPNsenseURL:                strings.TrimRight(v.GetString("opnsense.url"), "/"),
+		OPNsenseAPIKey:             v.GetString("opnsense.api_key"),
+		OPNsenseAPISecret:          v.GetString("opnsense.api_secret"),
+		OPNsenseAPIKeyFile:         v.GetString("opnsense.api_key_file"),
+		OPNsenseAPISecretFile:      v.GetString("opnsense.api_secret_file"),
+		OPNsenseInsecureSkipVerify: v.GetBool("opnsense.insecure_skip_verify"),
+		OPNsenseTimeout:            v.GetDuration("opnsense.timeout"),
 	}
 
 	if cfg.OPNsenseAPIKey == "" && cfg.OPNsenseAPIKeyFile != "" {
@@ -101,38 +97,48 @@ func (c Config) Redacted() Config {
 	return c
 }
 
-func envDefault(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
-	}
-	return fallback
+func newViper() *viper.Viper {
+	v := viper.New()
+	v.SetConfigType("env")
+	v.SetEnvPrefix("OTM")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	setDefaultAndBind(v, "web.addr", "127.0.0.1:8080", "OTM_WEB_ADDR")
+	setDefaultAndBind(v, "web.auth_token", "", "OTM_WEB_AUTH_TOKEN")
+	setDefaultAndBind(v, "netflow.addr", "0.0.0.0:2055", "OTM_NETFLOW_ADDR")
+	setDefaultAndBind(v, "netflow.allowed_exporters", "", "OTM_NETFLOW_ALLOWED_EXPORTERS")
+	setDefaultAndBind(v, "collector.advertise_addr", "", "OTM_COLLECTOR_ADVERTISE_ADDR")
+	setDefaultAndBind(v, "data.dir", "./data", "OTM_DATA_DIR")
+	setDefaultAndBind(v, "log.level", "info", "OTM_LOG_LEVEL")
+	setDefaultAndBind(v, "opnsense.url", "", "OTM_OPNSENSE_URL")
+	setDefaultAndBind(v, "opnsense.api_key", "", "OTM_OPNSENSE_API_KEY")
+	setDefaultAndBind(v, "opnsense.api_secret", "", "OTM_OPNSENSE_API_SECRET")
+	setDefaultAndBind(v, "opnsense.api_key_file", "", "OTM_OPNSENSE_API_KEY_FILE")
+	setDefaultAndBind(v, "opnsense.api_secret_file", "", "OTM_OPNSENSE_API_SECRET_FILE")
+	setDefaultAndBind(v, "opnsense.insecure_skip_verify", false, "OTM_OPNSENSE_INSECURE_SKIP_VERIFY")
+	setDefaultAndBind(v, "opnsense.timeout", 5*time.Second, "OTM_OPNSENSE_TIMEOUT")
+
+	return v
 }
 
-func loadDotEnv(path string) error {
+func setDefaultAndBind(v *viper.Viper, key string, value any, env string) {
+	v.SetDefault(key, value)
+	_ = v.BindEnv(key, env)
+}
+
+func mergeEnvFile(v *viper.Viper, path string) error {
 	if strings.TrimSpace(path) == "" {
 		return nil
 	}
-
-	file, err := os.Open(path)
+	values, err := gotenv.Read(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("open env file %s: %w", path, err)
+		return fmt.Errorf("parse env file %s: %w", path, err)
 	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	lineNumber := 0
-	for scanner.Scan() {
-		lineNumber++
-		key, value, ok, err := parseDotEnvLine(scanner.Text())
-		if err != nil {
-			return fmt.Errorf("parse env file %s line %d: %w", path, lineNumber, err)
-		}
-		if !ok {
-			continue
-		}
+	for key, value := range values {
 		if _, exists := os.LookupEnv(key); exists {
 			continue
 		}
@@ -140,51 +146,7 @@ func loadDotEnv(path string) error {
 			return fmt.Errorf("set env %s from %s: %w", key, path, err)
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("scan env file %s: %w", path, err)
-	}
 	return nil
-}
-
-func parseDotEnvLine(line string) (string, string, bool, error) {
-	line = strings.TrimSpace(line)
-	if line == "" || strings.HasPrefix(line, "#") {
-		return "", "", false, nil
-	}
-	line = strings.TrimPrefix(line, "export ")
-
-	key, value, found := strings.Cut(line, "=")
-	if !found {
-		return "", "", false, fmt.Errorf("expected KEY=VALUE")
-	}
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return "", "", false, fmt.Errorf("empty key")
-	}
-	for _, char := range key {
-		if !((char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_') {
-			return "", "", false, fmt.Errorf("invalid key %q", key)
-		}
-	}
-
-	value = strings.TrimSpace(value)
-	if len(value) >= 2 {
-		quote := value[0]
-		if (quote == '\'' || quote == '"') && value[len(value)-1] == quote {
-			unquoted, err := strconv.Unquote(value)
-			if err != nil {
-				if quote == '\'' {
-					return key, value[1 : len(value)-1], true, nil
-				}
-				return "", "", false, err
-			}
-			return key, unquoted, true, nil
-		}
-	}
-	if index := strings.Index(value, " #"); index >= 0 {
-		value = strings.TrimSpace(value[:index])
-	}
-	return key, value, true, nil
 }
 
 func splitCSV(value string) []string {
