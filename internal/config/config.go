@@ -116,7 +116,12 @@ func newViper() *viper.Viper {
 	setDefaultAndBind(v, "opnsense.api_secret", "", "OTM_OPNSENSE_API_SECRET")
 	setDefaultAndBind(v, "opnsense.api_key_file", "", "OTM_OPNSENSE_API_KEY_FILE")
 	setDefaultAndBind(v, "opnsense.api_secret_file", "", "OTM_OPNSENSE_API_SECRET_FILE")
-	setDefaultAndBind(v, "opnsense.insecure_skip_verify", false, "OTM_OPNSENSE_INSECURE_SKIP_VERIFY")
+	setDefaultAndBind(
+		v,
+		"opnsense.insecure_skip_verify",
+		false,
+		"OTM_OPNSENSE_INSECURE_SKIP_VERIFY",
+	)
 	setDefaultAndBind(v, "opnsense.timeout", 5*time.Second, "OTM_OPNSENSE_TIMEOUT")
 
 	return v

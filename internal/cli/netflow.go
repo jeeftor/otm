@@ -52,7 +52,8 @@ func newNetFlowRecordCommand(ctx context.Context) *cobra.Command {
 	}
 
 	command.Flags().StringVar(&listen, "listen", "0.0.0.0:2055", "UDP listen address")
-	command.Flags().StringVar(&allowExporter, "allow-exporter", "", "comma-separated exporter IP allowlist")
+	command.Flags().
+		StringVar(&allowExporter, "allow-exporter", "", "comma-separated exporter IP allowlist")
 	command.Flags().DurationVar(&duration, "duration", 5*time.Minute, "capture duration")
 	command.Flags().IntVar(&maxPackets, "max-packets", 0, "stop after this many packets")
 	command.Flags().StringVar(&output, "out", "netflow.otmcap", "capture output path")

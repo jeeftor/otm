@@ -81,9 +81,20 @@ func newValidateOPNsenseCommand() *cobra.Command {
 			logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
 			application := app.New(cfg, logger)
 			report := application.OPNsenseReport(cmd.Context())
-			fmt.Printf("configured=%v checks=%d points_to_collector=%v\n", report.Configured, len(report.Checks), report.NetFlow.PointsToCollector)
+			fmt.Printf(
+				"configured=%v checks=%d points_to_collector=%v\n",
+				report.Configured,
+				len(report.Checks),
+				report.NetFlow.PointsToCollector,
+			)
 			for _, check := range report.Checks {
-				fmt.Printf("%s ok=%v status=%d error=%s\n", check.Name, check.OK, check.StatusCode, check.Error)
+				fmt.Printf(
+					"%s ok=%v status=%d error=%s\n",
+					check.Name,
+					check.OK,
+					check.StatusCode,
+					check.Error,
+				)
 			}
 			return nil
 		},

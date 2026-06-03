@@ -21,10 +21,16 @@ type Client struct {
 }
 
 // NewClient creates an OPNsense API client.
-func NewClient(baseURL, key, secret string, insecureSkipVerify bool, timeout time.Duration) *Client {
+func NewClient(
+	baseURL, key, secret string,
+	insecureSkipVerify bool,
+	timeout time.Duration,
+) *Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if insecureSkipVerify {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // User opt-in for local/self-signed OPNsense installs.
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		} //nolint:gosec // User opt-in for local/self-signed OPNsense installs.
 	}
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
@@ -108,7 +114,11 @@ func (c *Client) Validate(ctx context.Context, expectedCollector string) Report 
 	return report
 }
 
-func (c *Client) callEndpoint(ctx context.Context, name, endpoint string, search bool) ([]byte, CheckResult) {
+func (c *Client) callEndpoint(
+	ctx context.Context,
+	name, endpoint string,
+	search bool,
+) ([]byte, CheckResult) {
 	methods := []string{http.MethodGet}
 	if search {
 		methods = []string{http.MethodPost, http.MethodGet}
@@ -127,7 +137,11 @@ func (c *Client) callEndpoint(ctx context.Context, name, endpoint string, search
 	return nil, last
 }
 
-func (c *Client) do(ctx context.Context, method, endpoint string, search bool) ([]byte, CheckResult) {
+func (c *Client) do(
+	ctx context.Context,
+	method, endpoint string,
+	search bool,
+) ([]byte, CheckResult) {
 	var body io.Reader
 	if method == http.MethodPost && search {
 		body = bytes.NewBufferString(`{"rowCount":1,"current":1}`)
@@ -154,7 +168,11 @@ func (c *Client) do(ctx context.Context, method, endpoint string, search bool) (
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return raw, CheckResult{OK: false, StatusCode: resp.StatusCode, Error: http.StatusText(resp.StatusCode)}
+		return raw, CheckResult{
+			OK:         false,
+			StatusCode: resp.StatusCode,
+			Error:      http.StatusText(resp.StatusCode),
+		}
 	}
 
 	return raw, CheckResult{OK: true, StatusCode: resp.StatusCode}
@@ -168,7 +186,10 @@ func analyzeNetFlowConfig(raw []byte, expectedCollector string) NetFlowFindings 
 
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		findings.Warnings = append(findings.Warnings, fmt.Sprintf("netflow config was not JSON: %v", err))
+		findings.Warnings = append(
+			findings.Warnings,
+			fmt.Sprintf("netflow config was not JSON: %v", err),
+		)
 		return findings
 	}
 
@@ -177,13 +198,16 @@ func analyzeNetFlowConfig(raw []byte, expectedCollector string) NetFlowFindings 
 
 	for _, value := range values {
 		lower := strings.ToLower(value)
-		if findings.EnabledHint == "" && (strings.Contains(lower, "enabled:true") || strings.Contains(lower, "enabled:1") || strings.Contains(lower, "enable:1")) {
+		if findings.EnabledHint == "" &&
+			(strings.Contains(lower, "enabled:true") || strings.Contains(lower, "enabled:1") || strings.Contains(lower, "enable:1")) {
 			findings.EnabledHint = value
 		}
-		if findings.VersionHint == "" && strings.Contains(lower, "version") && (strings.Contains(lower, "9") || strings.Contains(lower, "v9")) {
+		if findings.VersionHint == "" && strings.Contains(lower, "version") &&
+			(strings.Contains(lower, "9") || strings.Contains(lower, "v9")) {
 			findings.VersionHint = value
 		}
-		if findings.DestinationHint == "" && (strings.Contains(lower, "destination") || strings.Contains(lower, "target") || strings.Contains(lower, "collector")) {
+		if findings.DestinationHint == "" &&
+			(strings.Contains(lower, "destination") || strings.Contains(lower, "target") || strings.Contains(lower, "collector")) {
 			findings.DestinationHint = value
 		}
 	}
@@ -199,17 +223,26 @@ func analyzeNetFlowConfig(raw []byte, expectedCollector string) NetFlowFindings 
 			findings.PointsToCollector = true
 		}
 		if !findings.PointsToCollector {
-			findings.Warnings = append(findings.Warnings, "could not find expected collector address/port in NetFlow config")
+			findings.Warnings = append(
+				findings.Warnings,
+				"could not find expected collector address/port in NetFlow config",
+			)
 		}
 	} else {
 		findings.Warnings = append(findings.Warnings, "collector advertise address is not configured, so destination cannot be verified")
 	}
 
 	if findings.VersionHint == "" {
-		findings.Warnings = append(findings.Warnings, "could not confirm NetFlow version 9 from config")
+		findings.Warnings = append(
+			findings.Warnings,
+			"could not confirm NetFlow version 9 from config",
+		)
 	}
 	if findings.EnabledHint == "" {
-		findings.Warnings = append(findings.Warnings, "could not confirm NetFlow is enabled from config")
+		findings.Warnings = append(
+			findings.Warnings,
+			"could not confirm NetFlow is enabled from config",
+		)
 	}
 
 	return findings

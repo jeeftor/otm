@@ -825,17 +825,22 @@ As with NetFlow captures, raw snapshots are sensitive and should be gitignored u
 
 ## Milestones
 
-### Milestone 0: Repository And Skeleton
+### Milestone 0: Repository And Skeleton — COMPLETE
 
-- Initialize Go module.
-- Add Dockerfile and docker-compose.
-- Add FreeBSD build target in release config.
-- Add config loading.
-- Add SQLite migrations.
-- Add health endpoints.
-- Add structured logging.
-- Add minimal authenticated web shell.
-- Add `otmctl version` and `otmctl validate-config` command shape for future `configd` use.
+- [x] Initialize Go module.
+- [x] Add Dockerfile and docker-compose.
+- [x] Add FreeBSD build target in Makefile (`make build-freebsd`).
+- [x] Config loading — cobra/viper with dotenv, secret files, env var override.
+- [x] Health endpoints (`/healthz`, `/readyz`).
+- [x] Structured logging (`log/slog`).
+- [x] Minimal authenticated web shell — token-based auth, `/setup` status page.
+- [x] `otm version`, `otm validate-config`, `otm validate-opnsense` commands.
+- [x] OPNsense API client with endpoint validation report.
+- [x] NetFlow UDP listener with allowlist, version detection, and live stats.
+- [x] NetFlow capture/decode/replay CLI (`otm netflow record/decode/replay`, `.otmcap` format).
+- [x] Makefile with all planned targets.
+- [ ] SQLite migrations — **not done; blocks Milestone 1**.
+- [ ] `internal/domain` core types — **not done; blocks Milestone 1**.
 
 Verification:
 
@@ -845,45 +850,58 @@ docker compose up
 curl /healthz
 ```
 
-### Milestone 1: Fake Data End-To-End
+### Milestone 1: Fake Data End-To-End — NEXT
 
-- Implement fake identity source.
-- Implement fake flow collector.
-- Insert flows into SQLite.
-- Build hourly rollups.
-- Render Overview and Devices pages.
+Primary goal: prove the full ingest → store → query → render loop works before touching real hardware.
+
+Tasks:
+
+- [ ] Add `internal/domain` package with vendor-neutral types: `Flow`, `Device`, `DeviceIdentifier`, `IdentityObservation`, `AddressAssignment`, `UsageBucket`.
+- [ ] Add `internal/storage/sqlite` with WAL-mode SQLite, schema migrations, and a `FlowWriter` / `TrafficQueryStore` / `IdentityStore` implementation.
+- [ ] Add `internal/collectors/fake` — fake identity source (3–5 named devices with MACs) and fake flow generator (random bytes/packets toward external IPs).
+- [ ] Wire fake collectors into `internal/app` behind the `FlowCollector` / `IdentitySource` interfaces; start them under `otm serve` when no real sources are configured.
+- [ ] Write hourly rollup job that aggregates `flow_raw` into `usage_bucket_hour`.
+- [ ] Add Overview web page: collector health, flows/min, top talkers now, DB size, last aggregation run.
+- [ ] Add Devices web page: known devices, current IPs, last seen, bytes today.
 
 Verification:
 
 ```text
-fake device appears in web UI
-fake traffic appears in top talkers
-hourly bucket is written
+make fake-run
+# fake device appears in Devices page
+# fake traffic appears in top talkers on Overview
+# hourly bucket row is written to SQLite
 ```
 
-### Milestone 2: NetFlow v9 Receiver
+### Milestone 2: NetFlow v9 Receiver — AFTER MILESTONE 1
 
-- Implement UDP listener.
-- Implement v9 template cache and decoder.
-- Implement exporter allowlist.
-- Persist flow records.
-- Show NetFlow diagnostics.
+The UDP listener exists and counts packets; it does not yet decode templates or flows.
+
+- [ ] Add `internal/netflow/decoder` — NetFlow v9 template cache, flowset parser, domain `Flow` mapper.
+- [ ] Implement exporter allowlist enforcement in the decoder path (already in listener).
+- [ ] Track unknown templates, sequence gaps, and decode failures in listener stats.
+- [ ] Persist decoded `Flow` records via `FlowWriter`.
+- [ ] Show per-version and per-exporter decode diagnostics on `/setup`.
+- [ ] Add fixture-based decoder tests (`internal/netflow/testdata/`).
 
 Verification:
 
 ```text
 fixture sender produces decoded records
-invalid packets are rejected
+invalid packets are counted and skipped
 sequence gaps are tracked
 ```
 
-### Milestone 3: OPNsense Identity Adapter
+### Milestone 3: OPNsense Identity Adapter — PARTIALLY STARTED
 
-- Implement OPNsense API client.
-- Poll ARP/NDP.
-- Poll DHCP/Kea lease data where available.
-- Normalize to identity observations.
-- Resolve address assignments.
+The OPNsense API client and validation report exist (`internal/opnsense`). Identity ingestion is not wired in.
+
+- [x] OPNsense API client with TLS, key/secret auth.
+- [x] Endpoint validation report (`/api/diagnostics/netflow/*`, ARP, NDP, DHCP).
+- [ ] Implement `IdentitySource` adapter that polls ARP/NDP/DHCP lease endpoints on a configurable interval.
+- [ ] Normalize API responses to `IdentityObservation` records and persist via `IdentityStore`.
+- [ ] Resolve address-to-device assignments with time intervals.
+- [ ] Surface identity polling status (last poll time, error, observation count) in the web UI.
 
 Verification:
 

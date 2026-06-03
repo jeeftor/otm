@@ -278,7 +278,11 @@ func ReadCaptureFile(path string) ([]DecodedCaptureRecord, error) {
 			return nil, fmt.Errorf("parse capture line %d: %w", lineNumber, err)
 		}
 		if record.Format != captureFormat {
-			return nil, fmt.Errorf("parse capture line %d: unsupported format %q", lineNumber, record.Format)
+			return nil, fmt.Errorf(
+				"parse capture line %d: unsupported format %q",
+				lineNumber,
+				record.Format,
+			)
 		}
 		payload, err := base64.StdEncoding.DecodeString(record.Payload)
 		if err != nil {
